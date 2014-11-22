@@ -1,0 +1,6 @@
+#!/bin/bash
+# This file needs to export EXTERNAL_IP for certificate generation.
+# For GCE, we retrieve this from metadata service. See https://cloud.google.com/compute/docs/metadata
+# for more information.
+
+EXTERNAL_IP=$(curl http://metadata/computeMetadata/v1beta1/instance/network-interfaces/0/access-configs/0/external-ip)

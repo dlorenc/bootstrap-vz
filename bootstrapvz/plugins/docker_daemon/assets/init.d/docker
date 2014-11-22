@@ -25,6 +25,11 @@ DOCKER_LOGFILE=/var/log/$BASE.log
 DOCKER_OPTS=
 DOCKER_DESC="Docker"
 
+# Path to binary used to generate TLS certificates. See https://github.com/SvenDowideit/generate_cert
+GENERATE_CERT=/usr/bin/generate_cert
+# This is a provider-specific file that should export the variable EXTERNAL_IP.
+EXTERNAL_IP_PATH="/etc/default/external_ip"
+
 # Get lsb functions
 . /lib/lsb/init-functions
 
@@ -74,6 +79,41 @@ cgroupfs_mount() {
 	)
 }
 
+configure_tls() {
+	CERT_PATH="/etc/docker/tls"
+	mkdir -p "$CERT_PATH"
+	CLIENT_CERT_PATH="/home/docker/.docker"
+
+	if [ -e "$CERT_PATH"/ca.pem ] \
+	    || [ -e "$CERT_PATH"/cakey.pem ] \
+	    || [ -e "$CERT_PATH"/servercert.pem ] \
+	    || [ -e "$CERT_PATH"/serverkey.pem ] \
+	    || [ -e "$CERT_PATH"/cert.pem ] \
+	    || [ -e "$CERT_PATH"/key.pem ]; then
+	    return
+	fi
+
+	# This is a provider-specific script that exports the EXTERNAL_IP variable used
+	# in 'host' field of the server certificate.
+	. "$EXTERNAL_IP_PATH"
+
+	log_begin_msg "Starting $DOCKER_DESC certificate generation in $CERT_PATH."
+	$GENERATE_CERT --cert="$CERT_PATH"/ca.pem --key="$CERT_PATH"/cakey.pem
+	$GENERATE_CERT --host="$EXTERNAL_IP" --ca="$CERT_PATH"/ca.pem --ca-key="$CERT_PATH"/cakey.pem \
+	    --cert="$CERT_PATH"/servercert.pem --key="$CERT_PATH"/serverkey.pem
+	$GENERATE_CERT --ca="$CERT_PATH"/ca.pem --ca-key="$CERT_PATH"/cakey.pem --cert="$CERT_PATH"/cert.pem \
+	    --key="$CERT_PATH"/key.pem
+
+	# Now copy the client certs for the user.
+	mkdir -p "$CLIENT_CERT_PATH"
+	cp "$CERT_PATH"/ca.pem "$CLIENT_CERT_PATH"
+	mv "$CERT_PATH"/cert.pem "$CLIENT_CERT_PATH"
+	mv "$CERT_PATH"/key.pem "$CLIENT_CERT_PATH"
+	chmod +r $CLIENT_CERT_PATH/*
+
+	log_end_msg $?
+}
+
 case "$1" in
 	start)
 		fail_unless_root
@@ -85,6 +125,10 @@ case "$1" in
 
 		if [ -n "$DOCKER_NOFILE" ]; then
 			ulimit -n $DOCKER_NOFILE
+		fi
+
+		if [ -x "$GENERATE_CERT" ] && [ -e "$EXTERNAL_IP_PATH" ]; then
+			configure_tls
 		fi
 
 		log_begin_msg "Starting $DOCKER_DESC: $BASE"

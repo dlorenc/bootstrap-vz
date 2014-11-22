@@ -43,6 +43,18 @@ class AddDockerBinary(Task):
 		os.chmod(bin_docker, 0755)
 
 
+class AddGenerateCertBinary(Task):
+	description = 'Add generate_cert binary'
+	phase = phases.system_modification
+
+	@classmethod
+	def run(cls, info):
+		generate_cert_url = 'https://github.com/SvenDowideit/generate_cert/releases/download/0.1/generate_cert-0.1-linux-amd64'
+		bin_generate_cert = os.path.join(info.root, 'usr/bin/generate_cert')
+		log_check_call(['wget', '-O', bin_generate_cert, generate_cert_url])
+		os.chmod(bin_generate_cert, 0755)
+
+
 class AddDockerInit(Task):
 	description = 'Add docker init script'
 	phase = phases.system_modification
@@ -58,6 +70,12 @@ class AddDockerInit(Task):
 		docker_opts = info.manifest.plugins['docker_daemon'].get('docker_opts')
 		if docker_opts:
 			sed_i(default_dest, r'^#*DOCKER_OPTS=.*$', 'DOCKER_OPTS="%s"' % docker_opts)
+
+		if info.manifest.plugins['docker_daemon'].get('tls'):
+			# Copy the provider-specific script to export the VM's external IP.
+			external_ip_src = os.path.join(ASSETS_DIR, info.manifest.provider['name'], 'external_ip')
+			external_ip_dest = os.path.join(info.root, 'etc/default/external_ip')
+			shutil.copy(external_ip_src, external_ip_dest)
 
 
 class EnableMemoryCgroup(Task):

@@ -22,5 +22,7 @@ def resolve_tasks(taskset, manifest):
 	taskset.add(tasks.AddDockerBinary)
 	taskset.add(tasks.AddDockerInit)
 	taskset.add(tasks.EnableMemoryCgroup)
-        if len(manifest.plugins['docker_daemon'].get('pull_images', [])) > 0:
-                taskset.add(tasks.PullDockerImages)
+	if len(manifest.plugins['docker_daemon'].get('pull_images', [])) > 0:
+		taskset.add(tasks.PullDockerImages)
+	if manifest.plugins['docker_daemon'].get('tls'):
+		taskset.add(tasks.AddGenerateCertBinary)

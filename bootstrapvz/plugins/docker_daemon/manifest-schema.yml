@@ -14,6 +14,8 @@ properties:
             type: string
           docker_opts:
             type: string
+          tls:
+            type: bool
   system:
     type: object
     properties:
